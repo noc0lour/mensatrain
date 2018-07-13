@@ -96,8 +96,9 @@ class MensaTrainBot(object):
             return (None,
                     "Schedule planning is only supported for the same day")
 
-        if (date.hour > 14) or (date.hour == 14 and date.minute > 30):
-            return (None, "Schedule planning only possible until 14:30")
+        if (date.hour > 14) or (date.hour == 14 and date.minute > 30) or (
+                date.hour < 11):
+            return (None, "Schedule planning only possible from 11:00 until 14:30")
 
         return (date, args[1])
 
