@@ -195,7 +195,7 @@ class MensaTrainBot(object):
             custom_keyboard = [["/ticket " + t[1] + " " + t[2]]
                                for t in schedule]
             reply_markup = telegram.ReplyKeyboardMarkup(
-                custom_keyboard, one_time_keyboard=True)
+                custom_keyboard, one_time_keyboard=True, selective=True)
             update.message.reply_text(
                 "Select an available train.", reply_markup=reply_markup)
             return
