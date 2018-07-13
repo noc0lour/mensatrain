@@ -147,7 +147,8 @@ class MensaTrainBot(object):
         journeys = session.query(ScheduleMap).filter(
             ScheduleMap.date > datetime.date.today(),
             ScheduleMap.date < datetime.date.today() +
-            datetime.timedelta(1)).order_by(ScheduleMap.date)
+            datetime.timedelta(1),
+            ScheduleMap.valid == True).order_by(ScheduleMap.date)
         for j in journeys:
             participants = session.query(TicketMap).filter(
                 TicketMap.sid == j.id,
