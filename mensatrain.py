@@ -128,12 +128,13 @@ class MensaTrainBot(object):
 
     def get_user_ticket(self, update):
         session = self.session()
-        user_id = update.effective_user.id
+        user = self.get_user(update)
         user_ticket = session.query(TicketMap).filter(
-            TicketMap.valid == True).join(ScheduleMap).join(UserMap).filter(
-                TicketMap.user.tid == user_id).filter(
-                    TicketMap.journey.date > datetime.date.today(), TicketMap.journey.date
-                    < datetime.date.today() + datetime.timedelta(1))
+            TicketMap.valid == True,
+            TicketMap.uid == user.id).join(ScheduleMap).filter(
+                ScheduleMap.date > datetime.date.today(),
+                ScheduleMap.date <
+                datetime.date.today() + datetime.timedelta(1))
         return user_ticket.one_or_none()
 
     def build_keyboard(self, items):
