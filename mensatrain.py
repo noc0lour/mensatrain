@@ -173,7 +173,7 @@ class MensaTrainBot(object):
         schedule_information_text += tabulate.tabulate(
             schedule_information,
             schedule_information_headers,
-            tablefmt="simple")
+            tablefmt="plain")
         update.message.reply_markdown(schedule_information_text)
 
     def ticket(self, bot, update, **kwargs):
