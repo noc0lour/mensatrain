@@ -79,8 +79,7 @@ class MensaTrainBot(object):
             /schedule will display today's schedule
             /add_departure $local_time $station_name adds a new departure to today's schedule
             /ticket ($local_time $station_name) will get you a ticket to a MensaTrain if it exists
-            /revoke will revoke your current ticket for a train of the day"""
-            ))
+            /revoke will revoke your current ticket for a train of the day"""))
 
     def parse_args(self, args):
         if args is None or len(args) < 2:
@@ -147,8 +146,7 @@ class MensaTrainBot(object):
         schedule_information = []
         journeys = session.query(ScheduleMap).filter(
             ScheduleMap.date > datetime.date.today(),
-            ScheduleMap.date < datetime.date.today() +
-            datetime.timedelta(1),
+            ScheduleMap.date < datetime.date.today() + datetime.timedelta(1),
             ScheduleMap.valid == True).order_by(ScheduleMap.date)
         for j in journeys:
             participants = session.query(TicketMap).filter(
@@ -257,10 +255,13 @@ class MensaTrainBot(object):
         """Log Errors caused by Updates."""
         logger.warning('Update "%s" caused error "%s"', update, error)
 
+
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument('-t', '--token', help='Telegram bot API token. Keep this sekrit!')
+    parser.add_argument(
+        '-t', '--token', help='Telegram bot API token. Keep this sekrit!')
     return parser.parse_args()
+
 
 def main():
     """Start the bot."""
