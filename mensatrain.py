@@ -132,8 +132,8 @@ class MensaTrainBot(object):
         user_id = update.effective_user.id
         user_ticket = session.query(TicketMap).filter(
             TicketMap.valid == True).join(ScheduleMap).join(UserMap).filter(
-                UserMap.tid == user_id).filter(
-                    ScheduleMap.date > datetime.date.today(), ScheduleMap.date
+                TicketMap.user.tid == user_id).filter(
+                    TicketMap.journey.date > datetime.date.today(), TicketMap.journey.date
                     < datetime.date.today() + datetime.timedelta(1))
         return user_ticket.one_or_none()
 
