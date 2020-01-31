@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import telegram
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+from telegram.error import TelegramError
+from telegram.ext import Updater, CommandHandler, RegexHandler
+import urllib.request
 
 import sqlalchemy
 from sqlalchemy.ext.declarative import declarative_base
@@ -15,6 +17,7 @@ import argparse
 import json
 import inspect
 import logging
+import random
 
 Base = declarative_base()
 
@@ -64,6 +67,25 @@ class UserMap(Base):
     tickets = relationship("TicketMap", back_populates="user")
 
 
+def access_restricted(func):
+    def access_wrapper(self, bot, update, *args, **kwargs):
+        try:
+            arguments = parse_args()
+            user = bot.get_chat_member(
+                arguments.restricted_group,
+                update.effective_user.id
+            )
+            if user.status in ("member", "admin", "creator"):
+                return func(self, bot, update, *args, **kwargs)
+            update.message.reply_text(
+                    "You have not the correct permissions to use this \
+                    functionality."
+            )
+        except TelegramError:
+            pass
+    return access_wrapper
+
+
 class MensaTrainBot(object):
     def __init__(self, db_file):
         engine = sqlalchemy.create_engine(
@@ -79,7 +101,7 @@ class MensaTrainBot(object):
             /schedule will display today's schedule
             /add_departure $local_time $station_name adds a new departure to today's schedule
             /ticket ($local_time $station_name) will get you a ticket to a MensaTrain if it exists
-            /revoke will revoke your current ticket for a train of the day"""))
+            /revoke will revoke your current ticket for a train of the day"""))  # noqa
 
     def parse_args(self, args):
         if args is None or len(args) < 2:
@@ -88,7 +110,7 @@ class MensaTrainBot(object):
                 "Not enough arguments. Please provide time and station name.")
         try:
             date = dateutil.parser.parse(str(args[0]))
-        except ValueError or OverflowError as err:
+        except ValueError or OverflowError:
             return (None, "Invalid date format")
 
         if not datetime.date.today() == date.date():
@@ -97,7 +119,8 @@ class MensaTrainBot(object):
 
         if (date.hour > 14) or (date.hour == 14 and date.minute > 30) or (
                 date.hour < 11):
-            return (None, "Schedule planning only possible from 11:00 until 14:30")
+            return (None, "Schedule planning only possible from 11:00 until \
+            14:30")
 
         return (date, args[1])
 
@@ -123,14 +146,14 @@ class MensaTrainBot(object):
             tid=user_id).join(TicketMap).join(ScheduleMap).filter(
                 ScheduleMap.date > datetime.date.today(), ScheduleMap.date <
                 datetime.date.today() + datetime.timedelta(1),
-                TicketMap.valid == True)
+                TicketMap.valid is True)
         return user_journeys.one_or_none()
 
     def get_user_ticket(self, update):
         session = self.session()
         user = self.get_user(update)
         user_ticket = session.query(TicketMap).filter(
-            TicketMap.valid == True,
+            TicketMap.valid is True,
             TicketMap.uid == user.id).join(ScheduleMap).filter(
                 ScheduleMap.date > datetime.date.today(),
                 ScheduleMap.date <
@@ -148,7 +171,7 @@ class MensaTrainBot(object):
         journeys = session.query(ScheduleMap).filter(
             ScheduleMap.date > datetime.date.today(),
             ScheduleMap.date < datetime.date.today() + datetime.timedelta(1),
-            ScheduleMap.valid == True).order_by(ScheduleMap.date)
+            ScheduleMap.valid is True).order_by(ScheduleMap.date)
         for j in journeys:
             participants = session.query(TicketMap).filter(
                 TicketMap.sid == j.id,
@@ -162,6 +185,7 @@ class MensaTrainBot(object):
             ])
         return schedule_information
 
+    @access_restricted
     def schedule(self, bot, update):
         """
         """
@@ -176,17 +200,19 @@ class MensaTrainBot(object):
             tablefmt="plain")
         update.message.reply_markdown(schedule_information_text)
 
+    @access_restricted
     def ticket(self, bot, update, **kwargs):
         """
         """
         session = self.session()
-        user_id = update.effective_user.id
+        # user_id = update.effective_user.id
         # Check if the user already has a ticket for today
         # user_journey = self.get_user_journey(update)
         user_ticket = self.get_user_ticket(update)
         if user_ticket is not None:
             update.message.reply_text(
-                "Error processing your request: Already registered for a train today."
+                "Error processing your request: Already registered for a train \
+                today."
             )
             return
 
@@ -217,10 +243,12 @@ class MensaTrainBot(object):
         session.add(TicketMap(sid=journey.id, uid=user.id))
         session.commit()
         update.message.reply_text(
-            "You successfully bought your ticket for the train departing from {} at {}".
+            "You successfully bought your ticket for the train departing from \
+            {} at {}".
             format(journey.station, ":".join((str(journey.date.hour), str(
                 journey.date.minute)))))
 
+    @access_restricted
     def revoke(self, bot, update):
         session = self.session()
         user_ticket = self.get_user_ticket(update)
@@ -238,6 +266,7 @@ class MensaTrainBot(object):
 
         return
 
+    @access_restricted
     def add_departure(self, bot, update, **kwargs):
         """
         """
@@ -256,11 +285,50 @@ class MensaTrainBot(object):
         """Log Errors caused by Updates."""
         logger.warning('Update "%s" caused error "%s"', update, error)
 
+    def wat(self, bot, update):
+        update.message.reply_document("https://media.giphy.com/media/3WmWdBzqveXaE/giphy.gif", quote=False) # noqa
+
+    def benotet(self, bot, update):
+        args = parse_args()
+        with urllib.request.urlopen(
+                "http://api.giphy.com/v1/gifs/search?q=exam+grades&api_key={}".format(args.giphy) # noqa
+                ) as url:
+            data = json.loads(url.read().decode())
+            image_count = data['pagination']['total_count']
+        random_image_id = random.randint(0, min(image_count, 100))
+        with urllib.request.urlopen(
+                "http://api.giphy.com/v1/gifs/search?q=exam+grades&api_key={}&offset={}".format(args.giphy, random_image_id) # noqa
+                ) as url:
+            data = json.loads(url.read().decode())
+        image_id = data['data'][0]['id']
+        update.message.reply_document("https://media.giphy.com/media/{}/giphy.gif".format(image_id), quote=False) # noqa
+
+    def giphy(self, bot, update):
+        args = parse_args()
+        search_text = update.message.text.lower().lstrip('/')
+        with urllib.request.urlopen(
+                "http://api.giphy.com/v1/gifs/search?q={}&api_key={}".format(search_text, args.giphy) # noqa
+                ) as url:
+            data = json.loads(url.read().decode())
+            image_count = data['pagination']['total_count']
+        random_image_id = random.randint(0, max(min(image_count-1, 100), 0))
+        with urllib.request.urlopen(
+                "http://api.giphy.com/v1/gifs/search?q={}&api_key={}&offset={}".format(search_text, args.giphy, random_image_id) # noqa
+                ) as url:
+            data = json.loads(url.read().decode())
+
+        image_id = data['data'][0]['id']
+        update.message.reply_document("https://media.giphy.com/media/{}/giphy.gif".format(image_id), quote=False) # noqa
+
 
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '-t', '--token', help='Telegram bot API token. Keep this sekrit!')
+    parser.add_argument(
+        '-g', '--giphy', help='Giphy API token. Keep this also sekrit!')
+    parser.add_argument(
+        '-r', '--restricted-group', help='Restrict Bot to Group ID.')
     return parser.parse_args()
 
 
@@ -289,6 +357,9 @@ def main():
     dp.add_handler(CommandHandler("revoke", mybot.revoke))
     dp.add_handler(CommandHandler("help", mybot.help))
     dp.add_handler(CommandHandler("start", mybot.help))
+    dp.add_handler(CommandHandler("wat", mybot.wat))
+    dp.add_handler(CommandHandler("benotet", mybot.benotet))
+    dp.add_handler(RegexHandler(".*", mybot.giphy))
 
     # on noncommand i.e message - echo the message on Telegram
     # dp.add_handler(MessageHandler(Filters.text, mybot.echo))
