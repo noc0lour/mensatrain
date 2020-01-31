@@ -71,18 +71,26 @@ def access_restricted(func):
     def access_wrapper(self, bot, update, *args, **kwargs):
         try:
             arguments = parse_args()
-            user = bot.get_chat_member(
-                arguments.restricted_group,
-                update.effective_user.id
-            )
-            if user.status in ("member", "admin", "creator"):
+            if arguments.restricted_group:
+                user = bot.get_chat_member(
+                    arguments.restricted_group,
+                    update.effective_user.id
+                )
+                if user.status in ("member", "admin", "creator"):
+                    return func(self, bot, update, *args, **kwargs)
+                else:
+                    update.message.reply_text(
+                            "You have not the correct permissions to use this \
+                            functionality."
+                    )
+                    return
+            else:
                 return func(self, bot, update, *args, **kwargs)
-            update.message.reply_text(
-                    "You have not the correct permissions to use this \
-                    functionality."
-            )
         except TelegramError:
-            pass
+            update.message.reply_text(
+                "This bot is only for some users 😉."
+            )
+            return
     return access_wrapper
 
 
