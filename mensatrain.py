@@ -150,9 +150,9 @@ class MensaTrainBot(object):
         # Check if the user already has a ticket for today
         user_journeys = session.query(UserMap).filter_by(
             tid=user_id).join(TicketMap).join(ScheduleMap).filter(
-                ScheduleMap.date > datetime.date.today(), ScheduleMap.date <
-                datetime.date.today() + datetime.timedelta(1),
-                TicketMap.valid == True)
+            ScheduleMap.date > datetime.date.today(), ScheduleMap.date <
+            datetime.date.today() + datetime.timedelta(1),
+            TicketMap.valid == True)
         return user_journeys.one_or_none()
 
     def get_user_ticket(self, update: Update):
@@ -161,9 +161,9 @@ class MensaTrainBot(object):
         user_ticket = session.query(TicketMap).filter(
             TicketMap.valid == True,
             TicketMap.uid == user.id).join(ScheduleMap).filter(
-                ScheduleMap.date > datetime.date.today(),
-                ScheduleMap.date <
-                datetime.date.today() + datetime.timedelta(1))
+            ScheduleMap.date > datetime.date.today(),
+            ScheduleMap.date <
+            datetime.date.today() + datetime.timedelta(1))
         return user_ticket.one_or_none()
 
     def build_keyboard(self, items):
@@ -315,8 +315,10 @@ def parse_args():
 
 def main():
     """Start the bot."""
-    # Create the EventHandler and pass it your bot's token.
+    # Parse CLI-Arguments
     args = parse_args()
+
+    # Create the EventHandler and pass it your bot's token.
     updater = Updater(args.token, use_context=True)
 
     # Get the dispatcher to register handlers
@@ -325,7 +327,7 @@ def main():
     mybot = MensaTrainBot("fahrplan.db", args.giphy, args.restricted_group)
 
     # on different commands - answer in Telegram
-    dp.add_handler(CommandHandler("add_departure",  mybot.add_departure))
+    dp.add_handler(CommandHandler("add_departure", mybot.add_departure))
     dp.add_handler(CommandHandler("ticket", mybot.ticket))
     dp.add_handler(CommandHandler("schedule", mybot.schedule))
     dp.add_handler(CommandHandler("revoke", mybot.revoke))
