@@ -5,9 +5,9 @@ import inspect
 import json
 import logging
 import random
-import urllib.request
 
 import dateutil.parser
+import giphy_client
 import sqlalchemy
 import sqlalchemy.exc
 import tabulate
@@ -71,10 +71,9 @@ class UserMap(Base):
 def access_restricted(func):
     def access_wrapper(self, update: Update, context: CallbackContext):
         try:
-            arguments = parse_args()
-            if arguments.restricted_group:
+            if self.group_restriction:
                 user = context.bot.get_chat_member(
-                    arguments.restricted_group,
+                    self.group_restriction,
                     update.effective_user.id
                 )
                 if user.status in ("member", "admin", "creator"):
@@ -87,14 +86,23 @@ def access_restricted(func):
         except TelegramError:
             update.message.reply_text("This bot is only for some users 😉.")
             return
+
     return access_wrapper
 
 
 class MensaTrainBot(object):
-    def __init__(self, db_file):
+    def __init__(self, db_file, giphy_api_key, group_restriction):
+        # Init DB stuff (sqlite)
         engine = sqlalchemy.create_engine(f'sqlite:///{db_file}', poolclass=NullPool)
         Base.metadata.create_all(engine, checkfirst=True)
         self.session = sessionmaker(bind=engine)
+
+        # Init Giphy API Variables
+        self.giphy_api_instance = giphy_client.DefaultApi()
+        self.giphy_api_key = giphy_api_key
+
+        # Store group restriction:
+        self.group_restriction = group_restriction
 
     def help(self, update: Update, context: CallbackContext):
         """Send a message when the command /help is issued."""
@@ -271,39 +279,27 @@ class MensaTrainBot(object):
         logger.warning('Update "%s" caused error "%s"', update, context.error)
 
     def wat(self, update: Update, context: CallbackContext):
-        update.message.reply_document("https://media.giphy.com/media/3WmWdBzqveXaE/giphy.gif", quote=False) # noqa
+        # Get gif by id
+        api_response = self.giphy_api_instance.gifs_gif_id_get(self.giphy_api_key, "3WmWdBzqveXaE")
+        # Reply gif content link
+        update.message.reply_document(f"{api_response.data.images.original.url}")
 
     def benotet(self, update: Update, context: CallbackContext):
-        args = parse_args()
-        with urllib.request.urlopen(
-                f"http://api.giphy.com/v1/gifs/search?q=exam+grades&api_key={args.giphy}" # noqa
-                ) as url:
-            data = json.loads(url.read().decode())
-            image_count = data['pagination']['total_count']
-        random_image_id = random.randint(0, min(image_count, 100))
-        with urllib.request.urlopen(
-                f"http://api.giphy.com/v1/gifs/search?q=exam+grades&api_key={args.giphy}&offset={random_image_id}" # noqa
-                ) as url:
-            data = json.loads(url.read().decode())
-        image_id = data['data'][0]['id']
-        update.message.reply_document(f"https://media.giphy.com/media/{image_id}/giphy.gif", quote=False) # noqa
+        # Query list of gifs
+        query = "exam+grades"
+        api_response = self.giphy_api_instance.gifs_search_get(self.giphy_api_key, query, limit=100)
+        # select random gif from first 100 results (or less, if not more are found) (indexes, thats why -1)
+        random_image_id = random.randint(0, min(api_response.pagination.total_count - 1, 99))
+        # Reply gif content link
+        update.message.reply_document(f"{api_response.data[random_image_id].images.original.url}")
 
     def giphy(self, update: Update, context: CallbackContext):
-        args = parse_args()
-        search_text = update.message.text.lower().lstrip('/')
-        with urllib.request.urlopen(
-                f"http://api.giphy.com/v1/gifs/search?q={search_text}&api_key={args.giphy}" # noqa
-                ) as url:
-            data = json.loads(url.read().decode())
-            image_count = data['pagination']['total_count']
-        random_image_id = random.randint(0, max(min(image_count-1, 100), 0))
-        with urllib.request.urlopen(
-                f"http://api.giphy.com/v1/gifs/search?q={search_text}&api_key={args.giphy}&offset={random_image_id}" # noqa
-                ) as url:
-            data = json.loads(url.read().decode())
-
-        image_id = data['data'][0]['id']
-        update.message.reply_document(f"https://media.giphy.com/media/{image_id}/giphy.gif", quote=False) # noqa
+        query = "+".join(update.message.text.lower().lstrip('/').split())
+        api_response = self.giphy_api_instance.gifs_search_get(self.giphy_api_key, query)
+        # select random gif from first 100 results (or less, if not more are found) (indexes, thats why -1)
+        random_image_id = random.randint(0, max(min(api_response.pagination.total_count - 1, 99), 0))
+        # Reply gif content link
+        update.message.reply_document(f"{api_response.data[random_image_id].images.original.url}")
 
 
 def parse_args():
@@ -326,7 +322,7 @@ def main():
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
 
-    mybot = MensaTrainBot("fahrplan.db")
+    mybot = MensaTrainBot("fahrplan.db", args.giphy, args.restricted_group)
 
     # on different commands - answer in Telegram
     dp.add_handler(CommandHandler("add_departure",  mybot.add_departure))
