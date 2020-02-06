@@ -295,7 +295,7 @@ class MensaTrainBot(object):
 
     def giphy(self, update: Update, context: CallbackContext):
         query = "+".join(update.message.text.lower().lstrip('/').split())
-        api_response = self.giphy_api_instance.gifs_search_get(self.giphy_api_key, query)
+        api_response = self.giphy_api_instance.gifs_search_get(self.giphy_api_key, query, limit=100)
         # select random gif from first 100 results (or less, if not more are found) (indexes, thats why -1)
         random_image_id = random.randint(0, max(min(api_response.pagination.total_count - 1, 99), 0))
         # Reply gif content link
