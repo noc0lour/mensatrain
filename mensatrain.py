@@ -12,6 +12,7 @@ import sqlalchemy
 import sqlalchemy.exc
 import tabulate
 import telegram
+from mensaparser import get_food_plan
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.pool import NullPool
@@ -113,6 +114,10 @@ class MensaTrainBot(object):
             /add_departure $local_time $station_name adds a new departure to today's schedule
             /ticket ($local_time $station_name) will get you a ticket to a MensaTrain if it exists
             /revoke will revoke your current ticket for a train of the day"""))  # noqa
+
+    def error(self, update: Update, context: CallbackContext):
+        """Log Errors caused by Updates."""
+        logger.warning('Update "%s" caused error "%s"', update, context.error)
 
     def parse_args(self, args):
         if args is None or len(args) < 2:
@@ -274,9 +279,17 @@ class MensaTrainBot(object):
         except sqlalchemy.exc.IntegrityError:
             update.message.reply_text("Error processing your request: Duplicate journeys found.")
 
-    def error(self, update: Update, context: CallbackContext):
-        """Log Errors caused by Updates."""
-        logger.warning('Update "%s" caused error "%s"', update, context.error)
+    def essen(self, update: Update, context: CallbackContext):
+        """
+        """
+        essensplan = get_food_plan()
+        for linie, angebot in essensplan.items():
+            header = f"<b>{linie}:</b>\n"
+            table = tabulate.tabulate(
+                angebot,
+                tablefmt='plain'
+            )
+            update.message.reply_html(header + table)
 
     def wat(self, update: Update, context: CallbackContext):
         # Get gif by id
@@ -331,6 +344,7 @@ def main():
     dp.add_handler(CommandHandler("ticket", mybot.ticket))
     dp.add_handler(CommandHandler("schedule", mybot.schedule))
     dp.add_handler(CommandHandler("revoke", mybot.revoke))
+    dp.add_handler(CommandHandler("essen", mybot.essen))
     dp.add_handler(CommandHandler("help", mybot.help))
     dp.add_handler(CommandHandler("start", mybot.help))
     dp.add_handler(CommandHandler("wat", mybot.wat))
